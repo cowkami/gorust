@@ -68,7 +68,7 @@ impl TryFrom<String> for Point {
     type Error = &'static str;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        let re = Regex::new(r"([0-9]+)-([0-9]+)").expect("failed to parse the String to Point");
+        let re = Regex::new(r"([0-9]+) ([0-9]+)").expect("failed to parse the String to Point");
         for (_, [x, y]) in re.captures_iter(&value).map(|c| c.extract()) {
             return Ok(Self {
                 x: x.parse::<usize>().expect("failed to parse number"),
@@ -190,19 +190,19 @@ mod tests {
 
     #[test]
     fn point_try_from() {
-        let given = "0-0".to_string();
+        let given = "0 0".to_string();
         let result = Point::try_from(given).unwrap();
         assert_eq!(result, Point { x: 0, y: 0 });
 
-        let given = "1-0".to_string();
+        let given = "1 0".to_string();
         let result = Point::try_from(given).unwrap();
         assert_eq!(result, Point { x: 1, y: 0 });
 
-        let given = "10-0".to_string();
+        let given = "10 0".to_string();
         let result = Point::try_from(given).unwrap();
         assert_eq!(result, Point { x: 10, y: 0 });
 
-        let given = "10-10".to_string();
+        let given = "10 10".to_string();
         let result = Point::try_from(given).unwrap();
         assert_eq!(result, Point { x: 10, y: 10 });
 
