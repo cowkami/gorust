@@ -1,4 +1,6 @@
+use regex::Regex;
 use std::fmt;
+use std::io;
 
 const BOARD_SIZE: usize = 9;
 const BLACK: &str = "○";
@@ -8,14 +10,21 @@ const NUMBERS: [char; 19] = [
     '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲',
 ];
 
-fn main() {
+fn main() -> Result<(), String> {
     let mut board = Board::new();
-    board.stones[4][4] = Some(Stone::Black);
-    board.stones[4][5] = Some(Stone::White);
-    board.stones[4][3] = Some(Stone::White);
-    board.stones[3][3] = Some(Stone::White);
-    board.stones[0][0] = Some(Stone::White);
+    println!("initial board");
     println!("{}", board);
+
+    let mut command = String::new();
+    println!("{}", command);
+
+    io::stdin()
+        .read_line(&mut command)
+        .expect("failed to read line");
+
+    println!("{}", command);
+
+    Ok(())
 }
 
 #[derive(Copy, Clone)]
@@ -46,6 +55,27 @@ impl Board {
         Board {
             stones: [[None; BOARD_SIZE]; BOARD_SIZE],
         }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct Point {
+    x: usize,
+    y: usize,
+}
+
+impl TryFrom<String> for Point {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let re = Regex::new(r"([0-9]+)-([0-9]+)").expect("failed to parse the String to Point");
+        for (_, [x, y]) in re.captures_iter(&value).map(|c| c.extract()) {
+            return Ok(Self {
+                x: x.parse::<usize>().expect("failed to parse number"),
+                y: y.parse::<usize>().expect("failed to parse number"),
+            });
+        }
+        Err("failed to parse, Point pattern not found in the String")
     }
 }
 
@@ -151,5 +181,34 @@ impl fmt::Display for Board {
         )?;
         write!(f, "┘\n")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn point_try_from() {
+        let given = "0-0".to_string();
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { x: 0, y: 0 });
+
+        let given = "1-0".to_string();
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { x: 1, y: 0 });
+
+        let given = "10-0".to_string();
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { x: 10, y: 0 });
+
+        let given = "10-10".to_string();
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { x: 10, y: 10 });
+
+        // failure case
+        let given = "abc".to_string();
+        let result = Point::try_from(given);
+        assert!(result.is_err());
     }
 }
