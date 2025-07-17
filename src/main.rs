@@ -15,19 +15,29 @@ fn main() -> Result<(), String> {
     println!("initial board");
     println!("{}", board);
 
-    let mut command = String::new();
-    println!("{}", command);
+    loop {
+        let mut command = String::new();
 
-    io::stdin()
-        .read_line(&mut command)
-        .expect("failed to read line");
+        io::stdin()
+            .read_line(&mut command)
+            .expect("failed to read line");
 
-    println!("{}", command);
+        board.put(Stone::Black, &command.try_into().unwrap());
+
+        println!("{}", board);
+    }
 
     Ok(())
 }
 
-#[derive(Copy, Clone)]
+//#[derive(Debug, Copy, Clone)]
+//struct Game {
+//    turn: Stone,
+//    state: GameState,
+//    board: Board,
+//}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum Stone {
     Black,
     White,
@@ -56,26 +66,53 @@ impl Board {
             stones: [[None; BOARD_SIZE]; BOARD_SIZE],
         }
     }
+
+    pub fn put(&mut self, stone: Stone, position: &Position) -> Result<(), String> {
+        // validate for go rule
+        self.can_put(stone, position)
+            .expect("cannot put the stone on the position");
+
+        // put the stone on the position
+        self.stones[position.x - 1][position.y - 1] = Some(stone);
+        Ok(())
+    }
+
+    pub fn can_put(&self, stone: Stone, position: &Position) -> Result<(), String> {
+        // validate position range
+        if position.x <= 0 || BOARD_SIZE < position.x || position.y <= 0 || BOARD_SIZE < position.y
+        {
+            Err(format!(
+                "the position: {:?} is out of board range",
+                position
+            ))
+        }
+        // for go rule, no one can put a stone on the existing stone.
+        else if self.stones[position.x - 1][position.y - 1].is_some() {
+            Err("the other stone is already on the position".to_string())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
-struct Point {
+struct Position {
     x: usize,
     y: usize,
 }
 
-impl TryFrom<String> for Point {
-    type Error = &'static str;
+impl TryFrom<String> for Position {
+    type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        let re = Regex::new(r"([0-9]+) ([0-9]+)").expect("failed to parse the String to Point");
+        let re = Regex::new(r"([0-9]+),([0-9]+)").expect("failed to parse the String to Position");
         for (_, [x, y]) in re.captures_iter(&value).map(|c| c.extract()) {
             return Ok(Self {
                 x: x.parse::<usize>().expect("failed to parse number"),
                 y: y.parse::<usize>().expect("failed to parse number"),
             });
         }
-        Err("failed to parse, Point pattern not found in the String")
+        Err("failed to parse, Position pattern not found in the String".to_string())
     }
 }
 
@@ -190,25 +227,93 @@ mod tests {
 
     #[test]
     fn point_try_from() {
-        let given = "0 0".to_string();
-        let result = Point::try_from(given).unwrap();
-        assert_eq!(result, Point { x: 0, y: 0 });
+        let given = "0,0".to_string();
+        let result = Position::try_from(given).unwrap();
+        assert_eq!(result, Position { x: 0, y: 0 });
 
-        let given = "1 0".to_string();
-        let result = Point::try_from(given).unwrap();
-        assert_eq!(result, Point { x: 1, y: 0 });
+        let given = "1,0".to_string();
+        let result = Position::try_from(given).unwrap();
+        assert_eq!(result, Position { x: 1, y: 0 });
 
-        let given = "10 0".to_string();
-        let result = Point::try_from(given).unwrap();
-        assert_eq!(result, Point { x: 10, y: 0 });
+        let given = "10,0".to_string();
+        let result = Position::try_from(given).unwrap();
+        assert_eq!(result, Position { x: 10, y: 0 });
 
-        let given = "10 10".to_string();
-        let result = Point::try_from(given).unwrap();
-        assert_eq!(result, Point { x: 10, y: 10 });
+        let given = "10,10".to_string();
+        let result = Position::try_from(given).unwrap();
+        assert_eq!(result, Position { x: 10, y: 10 });
 
         // failure case
         let given = "abc".to_string();
-        let result = Point::try_from(given);
+        let result = Position::try_from(given);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn board_put() {
+        let mut board = Board::new();
+
+        let _ = board.put(Stone::Black, &Position { x: 1, y: 1 });
+        let _ = board.put(Stone::White, &Position { x: 1, y: 2 });
+
+        let mut expected = [[None; BOARD_SIZE]; BOARD_SIZE];
+        expected[0][0] = Some(Stone::Black);
+        expected[0][1] = Some(Stone::White);
+        for i in 0..BOARD_SIZE {
+            for j in 0..BOARD_SIZE {
+                assert_eq!(board.stones[i][j], expected[i][j]);
+            }
+        }
+    }
+
+    #[test]
+    fn board_can_put() {
+        let mut board = Board::new();
+
+        // ok
+        assert!(
+            board
+                .can_put(Stone::Black, &Position { x: 1, y: 1 })
+                .is_ok()
+        );
+        assert!(
+            board
+                .can_put(Stone::White, &Position { x: 1, y: 2 })
+                .is_ok()
+        );
+
+        // ng
+        assert!(
+            board
+                .can_put(Stone::Black, &Position { x: 0, y: 1 })
+                .is_err()
+        );
+        assert!(
+            board
+                .can_put(Stone::Black, &Position { x: 1, y: 0 })
+                .is_err()
+        );
+        assert!(
+            board
+                .can_put(
+                    Stone::Black,
+                    &Position {
+                        x: BOARD_SIZE + 1,
+                        y: 1
+                    }
+                )
+                .is_err()
+        );
+        assert!(
+            board
+                .can_put(
+                    Stone::Black,
+                    &Position {
+                        x: 1,
+                        y: BOARD_SIZE + 1
+                    }
+                )
+                .is_err()
+        );
     }
 }
