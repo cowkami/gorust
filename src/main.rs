@@ -11,31 +11,64 @@ const NUMBERS: [char; 19] = [
 ];
 
 fn main() -> Result<(), String> {
-    let mut board = Board::new();
+    let mut game = Game::new();
     println!("initial board");
-    println!("{}", board);
+    println!("{}", game.board);
 
     loop {
-        let mut command = String::new();
-
+        let mut raw_command = String::new();
         io::stdin()
-            .read_line(&mut command)
+            .read_line(&mut raw_command)
             .expect("failed to read line");
-
-        board.put(Stone::Black, &command.try_into().unwrap());
-
-        println!("{}", board);
+        let command = Command::PutStone {
+            stone: game.turn,
+            position: raw_command.try_into().unwrap(),
+        };
+        game.play(command);
+        println!("{}", game.board);
     }
 
     Ok(())
 }
 
-//#[derive(Debug, Copy, Clone)]
-//struct Game {
-//    turn: Stone,
-//    state: GameState,
-//    board: Board,
-//}
+#[derive(Debug, Copy, Clone)]
+struct Game {
+    turn: Stone,
+    board: Board,
+}
+
+impl Game {
+    pub fn new() -> Game {
+        Game {
+            turn: Stone::Black,
+            board: Board::new(),
+        }
+    }
+
+    pub fn play(&mut self, command: Command) -> Result<(), String> {
+        match command {
+            Command::PutStone { stone, position } => {
+                self.board
+                    .put(stone, &position)
+                    .expect("failed to put stone");
+                self.flip_turn();
+                Ok(())
+            }
+            _ => Err("undefined command".to_string()),
+        }
+    }
+
+    pub fn flip_turn(&mut self) {
+        self.turn = match self.turn {
+            Stone::Black => Stone::White,
+            Stone::White => Stone::Black,
+        }
+    }
+}
+
+enum Command {
+    PutStone { stone: Stone, position: Position },
+}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Stone {
@@ -56,6 +89,7 @@ impl fmt::Display for Stone {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 struct Board {
     stones: [[Option<Stone>; BOARD_SIZE]; BOARD_SIZE],
 }
@@ -71,7 +105,6 @@ impl Board {
         // validate for go rule
         self.can_put(stone, position)
             .expect("cannot put the stone on the position");
-
         // put the stone on the position
         self.stones[position.x - 1][position.y - 1] = Some(stone);
         Ok(())
@@ -88,7 +121,10 @@ impl Board {
         }
         // for go rule, no one can put a stone on the existing stone.
         else if self.stones[position.x - 1][position.y - 1].is_some() {
-            Err("the other stone is already on the position".to_string())
+            Err(format!(
+                "the other stone is already on the position: {:?}",
+                position
+            ))
         } else {
             Ok(())
         }
@@ -198,14 +234,12 @@ impl fmt::Display for Board {
             // right side line
             write!(f, " {} │\n", NUMBERS[i])?;
         }
-
         // lower coordination
         write!(f, "│  ")?;
         for i in 0..BOARD_SIZE {
             write!(f, " {}", NUMBERS[i])?;
         }
         write!(f, "   │\n")?;
-
         // lower line
         write!(f, "└")?;
         write!(
@@ -226,7 +260,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn point_try_from() {
+    fn position_try_from() {
         let given = "0,0".to_string();
         let result = Position::try_from(given).unwrap();
         assert_eq!(result, Position { x: 0, y: 0 });
@@ -315,5 +349,12 @@ mod tests {
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn game_flip_turn() {
+        let mut game = Game::new();
+
+        game.flip_turn();
     }
 }
