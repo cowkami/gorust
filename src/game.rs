@@ -16,24 +16,22 @@ impl Game {
 
     pub fn play(&mut self, command: Command) -> Result<(), String> {
         match command {
-            Command::PutStone { stone, position } => {
-                self.board
-                    .put(stone, &position)
-                    .expect("failed to put stone");
-                self.flip_turn();
-                Ok(())
-            }
+            Command::PutStone { stone, position } => match self.board.put(stone, &position) {
+                Ok(_) => {
+                    self.flip_turn();
+                    Ok(())
+                }
+                Err(err) => Err(format!("failed to execute command: {}", err)),
+            },
         }
     }
 
     pub fn flip_turn(&mut self) {
-        self.turn = match self.turn {
-            Stone::Black => Stone::White,
-            Stone::White => Stone::Black,
-        }
+        self.turn = self.turn.flip();
     }
 }
 
+#[derive(Clone)]
 pub enum Command {
     PutStone { stone: Stone, position: Position },
 }
@@ -45,7 +43,11 @@ mod tests {
     #[test]
     fn game_flip_turn() {
         let mut game = Game::new();
-
+        let previous_stone = game.turn.clone();
         game.flip_turn();
+        let new_stone = game.turn.clone();
+
+        assert_eq!(previous_stone, Stone::Black);
+        assert_eq!(new_stone, Stone::White);
     }
 }

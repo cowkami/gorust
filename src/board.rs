@@ -1,7 +1,7 @@
 use regex::Regex;
 use std::fmt;
 
-const BOARD_SIZE: usize = 9;
+pub const BOARD_SIZE: usize = 9;
 const BLACK: &str = "○";
 const WHITE: &str = "●";
 const NUMBERS: [char; 19] = [
@@ -13,6 +13,15 @@ const NUMBERS: [char; 19] = [
 pub enum Stone {
     Black,
     White,
+}
+
+impl Stone {
+    pub fn flip(self) -> Stone {
+        match self {
+            Self::Black => Self::White,
+            Self::White => Self::Black,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -29,11 +38,14 @@ impl Board {
 
     pub fn put(&mut self, stone: Stone, position: &Position) -> Result<(), String> {
         // validate for go rule
-        self.can_put(stone, position)
-            .expect("cannot put the stone on the position");
-        // put the stone on the position
-        self.stones[position.x - 1][position.y - 1] = Some(stone);
-        Ok(())
+        match self.can_put(stone, position) {
+            Ok(_) => {
+                // put the stone on the position
+                self.stones[position.x - 1][position.y - 1] = Some(stone);
+                Ok(())
+            }
+            Err(err) => Err(format!("cannot put stone: {}", err)),
+        }
     }
 
     pub fn can_put(&self, stone: Stone, position: &Position) -> Result<(), String> {
@@ -48,7 +60,7 @@ impl Board {
         // for go rule, no one can put a stone on the existing stone.
         else if self.stones[position.x - 1][position.y - 1].is_some() {
             Err(format!(
-                "the other stone is already on the position: {:?}",
+                "a stone is already on the position: {:?}",
                 position
             ))
         } else {
@@ -57,10 +69,11 @@ impl Board {
     }
 }
 
-#[derive(Debug, PartialEq)]
+// One origin to express domain
+#[derive(Debug, PartialEq, Clone)]
 pub struct Position {
-    x: usize,
-    y: usize,
+    pub x: usize,
+    pub y: usize,
 }
 
 impl fmt::Display for Stone {
@@ -152,11 +165,11 @@ impl fmt::Display for Board {
                     {
                         write!(f, "•─")?;
                     } else if i == 0 && j == BOARD_SIZE - 1 {
-                        write!(f, "{}", "┐")?;
+                        write!(f, "{}", "┐ ")?;
                     } else if i == BOARD_SIZE - 1 && j == 0 {
                         write!(f, "└─")?;
                     } else if i == BOARD_SIZE - 1 && j == BOARD_SIZE - 1 {
-                        write!(f, "┘")?;
+                        write!(f, "┘ ")?;
                     } else if i == 0 && j != 0 {
                         write!(f, "{}", "┬─")?;
                     } else if i == BOARD_SIZE - 1 && j != 0 {
@@ -164,14 +177,14 @@ impl fmt::Display for Board {
                     } else if i != 0 && j == 0 {
                         write!(f, "{}", "├─")?;
                     } else if i != 0 && j == BOARD_SIZE - 1 {
-                        write!(f, "{}", "┤")?;
+                        write!(f, "{}", "┤ ")?;
                     } else {
                         write!(f, "{}", "┼─")?;
                     }
                 }
             }
             // right side line
-            write!(f, " {} │\n", NUMBERS[i])?;
+            write!(f, "{} │\n", NUMBERS[i])?;
         }
         // lower coordination
         write!(f, "│  ")?;
