@@ -24,15 +24,27 @@ impl Stone {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Board {
-    stones: [[Option<Stone>; BOARD_SIZE]; BOARD_SIZE],
+    space: [[Option<Stone>; BOARD_SIZE]; BOARD_SIZE],
+    pub black_prisoners: usize,
+    pub white_prisoners: usize,
 }
 
 impl Board {
     pub fn new() -> Board {
         Board {
-            stones: [[None; BOARD_SIZE]; BOARD_SIZE],
+            space: [[None; BOARD_SIZE]; BOARD_SIZE],
+            black_prisoners: 0,
+            white_prisoners: 0,
+        }
+    }
+
+    pub fn new_with_prisoners(black_prisoners: usize, white_prisoners: usize) -> Board {
+        Board {
+            space: [[None; BOARD_SIZE]; BOARD_SIZE],
+            black_prisoners,
+            white_prisoners,
         }
     }
 
@@ -40,25 +52,38 @@ impl Board {
         // validate for go rule
         match self.can_put(stone, position) {
             Ok(_) => {
+                // if the stone kills the opponent's stones,
+                // if self.can_kill(stone, position) {
+                //     // take these stones from the board,
+                //     if self.kill(stone, position).is_err() {
+                //         return Err("cannot kill stones".to_string());
+                //     }
+                // }
                 // put the stone on the position
-                self.stones[position.x - 1][position.y - 1] = Some(stone);
+                self.space[position.row - 1][position.col - 1] = Some(stone);
                 Ok(())
             }
             Err(err) => Err(format!("cannot put stone: {}", err)),
         }
     }
 
-    pub fn can_put(&self, stone: Stone, position: &Position) -> Result<(), String> {
+    fn can_put(&self, stone: Stone, position: &Position) -> Result<(), String> {
         // validate position range
-        if position.x <= 0 || BOARD_SIZE < position.x || position.y <= 0 || BOARD_SIZE < position.y
+        if position.row <= 0
+            || BOARD_SIZE < position.row
+            || position.col <= 0
+            || BOARD_SIZE < position.col
         {
             Err(format!(
                 "the position: {:?} is out of board range",
                 position
             ))
         }
-        // for go rule, no one can put a stone on the existing stone.
-        else if self.stones[position.x - 1][position.y - 1].is_some() {
+        // #################
+        // Go rules
+        // #################
+        // 1. cannot put a stone on the existing stone.
+        else if self.space[position.row - 1][position.col - 1].is_some() {
             Err(format!(
                 "a stone is already on the position: {:?}",
                 position
@@ -66,14 +91,24 @@ impl Board {
         } else {
             Ok(())
         }
+        // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
+    }
+
+    pub fn can_kill(&self, stone: Stone, position: &Position) -> bool {
+        todo!()
+    }
+
+    pub fn kill(&self, stone: Stone, position: &Position) -> Result<(), String> {
+        // and add them to prisoners
+        todo!()
     }
 }
 
 // One origin to express domain
 #[derive(Debug, PartialEq, Clone)]
 pub struct Position {
-    pub x: usize,
-    pub y: usize,
+    pub row: usize,
+    pub col: usize,
 }
 
 impl fmt::Display for Stone {
@@ -94,10 +129,10 @@ impl TryFrom<String> for Position {
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         let re = Regex::new(r"([0-9]+),([0-9]+)").expect("failed to parse the String to Position");
-        for (_, [x, y]) in re.captures_iter(&value).map(|c| c.extract()) {
+        for (_, [row, col]) in re.captures_iter(&value).map(|c| c.extract()) {
             return Ok(Self {
-                x: x.parse::<usize>().expect("failed to parse number"),
-                y: y.parse::<usize>().expect("failed to parse number"),
+                row: row.parse::<usize>().expect("failed to parse number"),
+                col: col.parse::<usize>().expect("failed to parse number"),
             });
         }
         Err("failed to parse, Position pattern not found in the String".to_string())
@@ -129,7 +164,7 @@ impl fmt::Display for Board {
             // left side line
             write!(f, "│ {} ", NUMBERS[i])?;
             for j in 0..BOARD_SIZE {
-                if let Some(stone) = self.stones[i][j] {
+                if let Some(stone) = self.space[i][j] {
                     write!(f, "{} ", stone)?;
                 } else {
                     if i == 0 && j == 0 {
@@ -215,19 +250,19 @@ mod tests {
     fn position_try_from() {
         let given = "0,0".to_string();
         let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { x: 0, y: 0 });
+        assert_eq!(result, Position { row: 0, col: 0 });
 
         let given = "1,0".to_string();
         let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { x: 1, y: 0 });
+        assert_eq!(result, Position { row: 1, col: 0 });
 
         let given = "10,0".to_string();
         let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { x: 10, y: 0 });
+        assert_eq!(result, Position { row: 10, col: 0 });
 
         let given = "10,10".to_string();
         let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { x: 10, y: 10 });
+        assert_eq!(result, Position { row: 10, col: 10 });
 
         // failure case
         let given = "abc".to_string();
@@ -239,15 +274,15 @@ mod tests {
     fn board_put() {
         let mut board = Board::new();
 
-        let _ = board.put(Stone::Black, &Position { x: 1, y: 1 });
-        let _ = board.put(Stone::White, &Position { x: 1, y: 2 });
+        let _ = board.put(Stone::Black, &Position { row: 1, col: 1 });
+        let _ = board.put(Stone::White, &Position { row: 1, col: 2 });
 
         let mut expected = [[None; BOARD_SIZE]; BOARD_SIZE];
         expected[0][0] = Some(Stone::Black);
         expected[0][1] = Some(Stone::White);
         for i in 0..BOARD_SIZE {
             for j in 0..BOARD_SIZE {
-                assert_eq!(board.stones[i][j], expected[i][j]);
+                assert_eq!(board.space[i][j], expected[i][j]);
             }
         }
     }
@@ -259,24 +294,24 @@ mod tests {
         // ok
         assert!(
             board
-                .can_put(Stone::Black, &Position { x: 1, y: 1 })
+                .can_put(Stone::Black, &Position { row: 1, col: 1 })
                 .is_ok()
         );
         assert!(
             board
-                .can_put(Stone::White, &Position { x: 1, y: 2 })
+                .can_put(Stone::White, &Position { row: 1, col: 2 })
                 .is_ok()
         );
 
         // ng
         assert!(
             board
-                .can_put(Stone::Black, &Position { x: 0, y: 1 })
+                .can_put(Stone::Black, &Position { row: 0, col: 1 })
                 .is_err()
         );
         assert!(
             board
-                .can_put(Stone::Black, &Position { x: 1, y: 0 })
+                .can_put(Stone::Black, &Position { row: 1, col: 0 })
                 .is_err()
         );
         assert!(
@@ -284,8 +319,8 @@ mod tests {
                 .can_put(
                     Stone::Black,
                     &Position {
-                        x: BOARD_SIZE + 1,
-                        y: 1
+                        row: BOARD_SIZE + 1,
+                        col: 1
                     }
                 )
                 .is_err()
@@ -295,11 +330,57 @@ mod tests {
                 .can_put(
                     Stone::Black,
                     &Position {
-                        x: 1,
-                        y: BOARD_SIZE + 1
+                        row: 1,
+                        col: BOARD_SIZE + 1
                     }
                 )
                 .is_err()
         );
+    }
+
+    #[test]
+    fn board_can_kill() {
+        // should kill corner stone
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ● ○ ┬─┬─┬─
+        // │ ② ├─┼─┼─┼─┼─
+        // │ ③ ├─┼─┼─┼─┼─
+        let mut board = Board::new();
+        board
+            .put(Stone::White, &Position { row: 1, col: 1 })
+            .unwrap();
+        board
+            .put(Stone::Black, &Position { row: 1, col: 2 })
+            .unwrap();
+
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ● ○ ┬─┬─┬─
+        // │ ② ○ ┼─┼─┼─┼─
+        // │ ③ ├─┼─┼─┼─┼─
+        board
+            .put(Stone::Black, &Position { row: 2, col: 1 })
+            .unwrap();
+
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌ ○ ┬─┬─┬─
+        // │ ② ○ ┼─┼─┼─┼─
+        // │ ③ ├─┼─┼─┼─┼─
+        let mut expected = Board::new_with_prisoners(0, 1);
+        expected
+            .put(Stone::Black, &Position { row: 1, col: 2 })
+            .unwrap();
+        expected
+            .put(Stone::Black, &Position { row: 2, col: 1 })
+            .unwrap();
+        assert_eq!(board, expected);
+
+        // should kill side stone
+
+        // should kill floated stone
+
+        // should kill multiple stones
     }
 }

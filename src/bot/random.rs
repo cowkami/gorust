@@ -15,7 +15,7 @@ impl RandomBot {
         // make new position
         let x = self.random_generator.random_range(1..=BOARD_SIZE);
         let y = self.random_generator.random_range(1..=BOARD_SIZE);
-        let position = Position { x, y };
+        let position = Position { row: x, col: y };
 
         // make new command
         let command = Command::PutStone { stone, position };
