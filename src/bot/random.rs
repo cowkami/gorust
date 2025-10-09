@@ -13,9 +13,9 @@ impl RandomBot {
         let stone = game.turn.clone();
 
         // make new position
-        let x = self.random_generator.random_range(1..=BOARD_SIZE);
-        let y = self.random_generator.random_range(1..=BOARD_SIZE);
-        let position = Position { row: x, col: y };
+        let row = self.random_generator.random_range(1..=BOARD_SIZE) as i8;
+        let col = self.random_generator.random_range(1..=BOARD_SIZE) as i8;
+        let position = Position { row, col };
 
         // make new command
         let command = Command::PutStone { stone, position };

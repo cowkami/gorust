@@ -24,6 +24,11 @@ impl Stone {
     }
 }
 
+pub enum BoardCell {
+    Wall,
+    Space(Option<Stone>),
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Board {
     space: [[Option<Stone>; BOARD_SIZE]; BOARD_SIZE],
@@ -48,6 +53,19 @@ impl Board {
         }
     }
 
+    fn get(&self, position: &Position) -> BoardCell {
+        // check position range
+        if position.row <= 0
+            || BOARD_SIZE < position.row as usize
+            || position.col <= 0
+            || BOARD_SIZE < position.col as usize
+        {
+            BoardCell::Wall
+        } else {
+            BoardCell::Space(self.space[position.row as usize - 1][position.col as usize - 1])
+        }
+    }
+
     pub fn put(&mut self, stone: Stone, position: &Position) -> Result<(), String> {
         // validate for go rule
         match self.can_put(stone, position) {
@@ -60,7 +78,7 @@ impl Board {
                 //     }
                 // }
                 // put the stone on the position
-                self.space[position.row - 1][position.col - 1] = Some(stone);
+                self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
                 Ok(())
             }
             Err(err) => Err(format!("cannot put stone: {}", err)),
@@ -68,12 +86,10 @@ impl Board {
     }
 
     fn can_put(&self, stone: Stone, position: &Position) -> Result<(), String> {
+        let board_cell = self.get(position);
+
         // validate position range
-        if position.row <= 0
-            || BOARD_SIZE < position.row
-            || position.col <= 0
-            || BOARD_SIZE < position.col
-        {
+        if matches!(board_cell, BoardCell::Wall) {
             Err(format!(
                 "the position: {:?} is out of board range",
                 position
@@ -83,7 +99,7 @@ impl Board {
         // Go rules
         // #################
         // 1. cannot put a stone on the existing stone.
-        else if self.space[position.row - 1][position.col - 1].is_some() {
+        else if matches!(board_cell, BoardCell::Space(Some(s)) if s == stone) {
             Err(format!(
                 "a stone is already on the position: {:?}",
                 position
@@ -107,8 +123,8 @@ impl Board {
 // One origin to express domain
 #[derive(Debug, PartialEq, Clone)]
 pub struct Position {
-    pub row: usize,
-    pub col: usize,
+    pub row: i8,
+    pub col: i8,
 }
 
 impl fmt::Display for Stone {
@@ -131,8 +147,8 @@ impl TryFrom<String> for Position {
         let re = Regex::new(r"([0-9]+),([0-9]+)").expect("failed to parse the String to Position");
         for (_, [row, col]) in re.captures_iter(&value).map(|c| c.extract()) {
             return Ok(Self {
-                row: row.parse::<usize>().expect("failed to parse number"),
-                col: col.parse::<usize>().expect("failed to parse number"),
+                row: row.parse::<i8>().expect("failed to parse number"),
+                col: col.parse::<i8>().expect("failed to parse number"),
             });
         }
         Err("failed to parse, Position pattern not found in the String".to_string())
@@ -319,7 +335,7 @@ mod tests {
                 .can_put(
                     Stone::Black,
                     &Position {
-                        row: BOARD_SIZE + 1,
+                        row: BOARD_SIZE as i8 + 1,
                         col: 1
                     }
                 )
@@ -331,7 +347,7 @@ mod tests {
                     Stone::Black,
                     &Position {
                         row: 1,
-                        col: BOARD_SIZE + 1
+                        col: BOARD_SIZE as i8 + 1
                     }
                 )
                 .is_err()
