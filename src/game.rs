@@ -1,6 +1,6 @@
 use crate::board::{Board, Position, Stone};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct Game {
     pub turn: Stone,
     pub board: Board,
@@ -16,7 +16,7 @@ impl Game {
 
     pub fn play(&mut self, command: Command) -> Result<(), String> {
         match command {
-            Command::PutStone { stone, position } => match self.board.put(stone, &position) {
+            Command::PutStone { stone, position } => match self.board.put(stone, position) {
                 Ok(_) => {
                     self.flip_turn();
                     Ok(())
