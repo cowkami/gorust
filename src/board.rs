@@ -128,7 +128,7 @@ impl Board {
         // stone groups connected with adjacent
         let stone_groups = adjacent_stones
             .into_iter()
-            .map(|p| self.get_group(stone, p));
+            .map(|p| self.find_group(stone, p));
 
         todo!()
     }
@@ -138,26 +138,33 @@ impl Board {
         todo!()
     }
 
-    fn get_group(&mut self, stone: Stone, position: Position) -> Vec<Position> {
+    fn find_group(&mut self, stone: Stone, start_position: Position) -> Vec<Position> {
         let mut group = vec![];
-        let mut memo = HashSet::new();
-        let mut stack = vec![position.clone()];
+        let mut checked_positions = HashSet::new();
+        let mut check_positions = vec![start_position.clone()];
 
-        while let Some(node) = stack.pop() {
+        while let Some(position) = check_positions.pop() {
             // check if the node is known
-            if memo.contains(&node) {
+            if checked_positions.contains(&position) {
                 continue;
             }
 
             // check if the node's color is same
-            let cell = self.get(node.clone());
-            if matches!(cell, BoardCell::Space(Some(s)) if s == stone) {
+            if matches!(
+                self.get(position.clone()),
+                BoardCell::Space(Some(s)) if s == stone,
+            ) {
                 // add same color to group
-                group.push(node.clone());
+                group.push(position.clone());
                 // add up,down,left and right of the node to stack to check around the node
-                stack.append(&mut vec![node.up(), node.down(), node.left(), node.right()]);
+                check_positions.append(&mut vec![
+                    position.up(),
+                    position.down(),
+                    position.left(),
+                    position.right(),
+                ]);
             }
-            memo.insert(node.clone());
+            checked_positions.insert(position);
         }
 
         group
@@ -481,10 +488,10 @@ mod tests {
     }
 
     #[test]
-    fn board_get_group_of() {
+    fn board_find_group() {
         // no stone should be empty group.
         let mut board = Board::new();
-        let group = board.get_group(Stone::Black, Position { row: 1, col: 1 });
+        let group = board.find_group(Stone::Black, Position { row: 1, col: 1 });
         assert_eq!(group, vec![]);
 
         // single stone should be group.
@@ -501,7 +508,7 @@ mod tests {
             .put(Stone::Black, Position { row: 1, col: 2 })
             .unwrap();
 
-        let group = board.get_group(Stone::White, Position { row: 1, col: 1 });
+        let group = board.find_group(Stone::White, Position { row: 1, col: 1 });
         assert_eq!(group, vec![Position { row: 1, col: 1 }]);
 
         // multiple stones should be group.
@@ -518,14 +525,14 @@ mod tests {
             .put(Stone::White, Position { row: 1, col: 2 })
             .unwrap();
 
-        let group = board.get_group(Stone::White, Position { row: 1, col: 1 });
+        let group = board.find_group(Stone::White, Position { row: 1, col: 1 });
         assert_eq!(
             group,
             vec![Position { row: 1, col: 1 }, Position { row: 1, col: 2 }]
         );
 
         // and also can refer another position
-        let mut group = board.get_group(Stone::White, Position { row: 1, col: 2 });
+        let mut group = board.find_group(Stone::White, Position { row: 1, col: 2 });
         group.sort_by_key(|p| p.col);
         assert_eq!(
             group,
@@ -560,7 +567,7 @@ mod tests {
         board
             .put(Stone::White, Position { row: 3, col: 3 })
             .unwrap();
-        let mut group = board.get_group(Stone::White, Position { row: 1, col: 2 });
+        let mut group = board.find_group(Stone::White, Position { row: 1, col: 2 });
         group.sort_by_key(|p| p.col);
         group.sort_by_key(|p| p.row);
         assert_eq!(
