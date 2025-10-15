@@ -3,8 +3,8 @@ pub mod bot;
 pub mod game;
 
 use bot::{Bot, RandomBot};
-use game::{Command, Game};
-use std::io;
+use game::Game;
+
 fn main() -> Result<(), String> {
     let mut game = Game::new();
     let mut bot_player = RandomBot::new();

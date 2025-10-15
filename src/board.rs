@@ -1,9 +1,5 @@
 use regex::Regex;
-use std::{
-    cmp,
-    collections::{HashMap, HashSet},
-    fmt,
-};
+use std::{collections::HashSet, fmt};
 
 pub const BOARD_SIZE: usize = 9;
 const BLACK: &str = "○";
