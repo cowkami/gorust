@@ -1,4 +1,4 @@
-use crate::board::{Board, Position, Stone};
+use crate::board::{Board, Point, Stone};
 
 #[derive(Debug, Clone)]
 pub struct Game {
@@ -16,13 +16,17 @@ impl Game {
 
     pub fn play(&mut self, command: Command) -> Result<(), String> {
         match command {
-            Command::PutStone { stone, position } => match self.board.put(stone, position) {
+            Command::PutStone { stone, point } => match self.board.put(stone, point) {
                 Ok(_) => {
                     self.flip_turn();
                     Ok(())
                 }
                 Err(err) => Err(format!("failed to execute command: {}", err)),
             },
+            Command::Pass => {
+                self.flip_turn();
+                Ok(())
+            }
         }
     }
 
@@ -33,7 +37,8 @@ impl Game {
 
 #[derive(Clone, Debug)]
 pub enum Command {
-    PutStone { stone: Stone, position: Position },
+    PutStone { stone: Stone, point: Point },
+    Pass,
 }
 
 #[cfg(test)]

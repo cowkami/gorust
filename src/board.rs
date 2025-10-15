@@ -53,53 +53,62 @@ impl Board {
         }
     }
 
-    fn get(&self, position: Position) -> BoardCell {
-        // check position range
-        if position.row <= 0
-            || BOARD_SIZE < position.row as usize
-            || position.col <= 0
-            || BOARD_SIZE < position.col as usize
+    fn get(&self, point: Point) -> BoardCell {
+        // check point range
+        if point.row <= 0
+            || BOARD_SIZE < point.row as usize
+            || point.col <= 0
+            || BOARD_SIZE < point.col as usize
         {
             BoardCell::Wall
         } else {
-            BoardCell::Space(self.space[position.row as usize - 1][position.col as usize - 1])
+            BoardCell::Space(self.space[point.row as usize - 1][point.col as usize - 1])
         }
     }
 
-    pub fn put(&mut self, stone: Stone, position: Position) -> Result<(), String> {
+    pub fn put(&mut self, stone: Stone, point: Point) -> Result<(), String> {
         // validate for go rule
-        match self.can_put(stone, position.clone()) {
+        match self.can_put(stone, point) {
             Ok(_) => {
-                self.kill_by(stone, position.clone());
-                self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
+                self.kill_by(stone, point);
+                self.space[point.row as usize - 1][point.col as usize - 1] = Some(stone);
                 Ok(())
             }
             Err(err) => Err(format!("cannot put stone: {}", err)),
         }
     }
 
-    fn can_put(&mut self, stone: Stone, position: Position) -> Result<(), String> {
-        let board_cell = self.get(position.clone());
+    pub fn find_available_points(&mut self, stone: Stone) -> Vec<Point> {
+        let mut available_points = vec![];
+        for row in 1..=BOARD_SIZE {
+            for col in 1..=BOARD_SIZE {
+                let point = Point {
+                    row: row as i8,
+                    col: col as i8,
+                };
+                if self.can_put(stone, point).is_ok() {
+                    available_points.push(point);
+                }
+            }
+        }
+        available_points
+    }
 
-        // validate position range
+    fn can_put(&mut self, stone: Stone, point: Point) -> Result<(), String> {
+        let board_cell = self.get(point);
+        // validate point range
         if matches!(board_cell, BoardCell::Wall) {
-            Err(format!(
-                "the position: {:?} is out of board range",
-                position
-            ))
+            Err(format!("the point: {:?} is out of board range", point))
         }
         // #################
         // Go rules
         // #################
         // 1. cannot put a stone on the existing stone.
         else if matches!(board_cell, BoardCell::Space(Some(_))) {
-            Err(format!(
-                "a stone is already on the position: {:?}",
-                position
-            ))
+            Err(format!("a stone is already on the point: {:?}", point))
         // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
-        } else if self.is_suicide(stone, position.clone())
-            && self.find_groups_can_kill(stone, position.clone()).len() == 0
+        } else if self.is_suicide(stone, point)
+            && self.find_groups_can_kill(stone, point).len() == 0
         {
             Err(format!("it's a suicide move."))
         } else {
@@ -107,8 +116,8 @@ impl Board {
         }
     }
 
-    pub fn kill_by(&mut self, stone: Stone, position: Position) {
-        let groups = self.find_groups_can_kill(stone, position.clone());
+    pub fn kill_by(&mut self, stone: Stone, point: Point) {
+        let groups = self.find_groups_can_kill(stone, point);
         if groups.len() == 0 {
             return;
         }
@@ -129,27 +138,27 @@ impl Board {
         }
     }
 
-    fn find_groups_can_kill(&self, stone: Stone, position: Position) -> Vec<Vec<Position>> {
+    fn find_groups_can_kill(&self, stone: Stone, point: Point) -> Vec<Vec<Point>> {
         // todo: refacter not to use unwrap
         vec![
             // find opponent's stone from around
-            position.up(),
-            position.down(),
-            position.left(),
-            position.right(),
+            point.up(),
+            point.down(),
+            point.left(),
+            point.right(),
         ]
         .into_iter()
-        .filter_map(|p| match self.get(p.clone()) {
+        .filter_map(|p| match self.get(p) {
             // choose opponent's stones
             BoardCell::Space(Some(s)) if s == stone.flip() => Some(p),
             _ => None,
         })
         // find groups of opponent's stones
         .map(|p| self.find_group(stone.flip(), p))
-        // choose group that breathing space is 1 and given position
+        // choose group that breathing space is 1 and given point
         .filter_map(|g| {
             let breathing_space = self.find_breathing_space(g.clone());
-            if breathing_space.len() == 1 && breathing_space[0] == position {
+            if breathing_space.len() == 1 && breathing_space[0] == point {
                 Some(g)
             } else {
                 None
@@ -158,7 +167,7 @@ impl Board {
         .collect()
     }
 
-    fn find_breathing_space(&self, group: Vec<Position>) -> Vec<Position> {
+    fn find_breathing_space(&self, group: Vec<Point>) -> Vec<Point> {
         // todo: refoctor not to use unwrap
         if group.len() == 0 {
             return vec![];
@@ -166,103 +175,103 @@ impl Board {
         let mut breathing_points = vec![];
         let mut checked_points = HashSet::new();
         let mut check_points = vec![];
-        for p in group.iter() {
+        for p in group.into_iter() {
             // group points are all opponent's color stones, so no need to check.
-            checked_points.insert(p.clone());
+            checked_points.insert(p);
             check_points.append(&mut vec![p.up(), p.down(), p.right(), p.left()]);
         }
-        // check around the position
+        // check around the point
         while let Some(check_point) = check_points.pop() {
             // is check_point already checked?
             if checked_points.contains(&check_point) {
                 continue;
             }
             // if the cell is empty
-            if matches!(self.get(check_point.clone()), BoardCell::Space(None)) {
-                breathing_points.push(check_point.clone());
+            if matches!(self.get(check_point), BoardCell::Space(None)) {
+                breathing_points.push(check_point);
                 checked_points.insert(check_point);
             }
         }
         breathing_points
     }
 
-    fn find_group(&self, stone: Stone, start_position: Position) -> Vec<Position> {
+    fn find_group(&self, stone: Stone, start_point: Point) -> Vec<Point> {
         let mut group = vec![];
-        let mut checked_positions = HashSet::new();
-        let mut check_positions = vec![start_position.clone()];
+        let mut checked_points = HashSet::new();
+        let mut check_points = vec![start_point];
 
-        while let Some(position) = check_positions.pop() {
+        while let Some(point) = check_points.pop() {
             // check if the node is known
-            if checked_positions.contains(&position) {
+            if checked_points.contains(&point) {
                 continue;
             }
 
             // check if the node's color is same
             if matches!(
-                self.get(position.clone()),
+                self.get(point),
                 BoardCell::Space(Some(s)) if s == stone,
             ) {
                 // add same color to group
-                group.push(position.clone());
+                group.push(point);
                 // add up,down,left and right of the node to stack to check around the node
-                check_positions.append(&mut vec![
-                    position.up(),
-                    position.down(),
-                    position.left(),
-                    position.right(),
+                check_points.append(&mut vec![
+                    point.up(),
+                    point.down(),
+                    point.left(),
+                    point.right(),
                 ]);
             }
-            checked_positions.insert(position);
+            checked_points.insert(point);
         }
 
         group
     }
 
-    fn is_suicide(&mut self, stone: Stone, position: Position) -> bool {
+    fn is_suicide(&mut self, stone: Stone, point: Point) -> bool {
         // todo: refactor? implementing temporary put method is very considerable.
         // put stone temporary
-        self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
+        self.space[point.row as usize - 1][point.col as usize - 1] = Some(stone);
         // calculate breathing space of put stone
-        let group = self.find_group(stone, position.clone());
+        let group = self.find_group(stone, point);
         let breathing_space = self.find_breathing_space(group);
         // remove stone put temporary
-        self.space[position.row as usize - 1][position.col as usize - 1] = None;
+        self.space[point.row as usize - 1][point.col as usize - 1] = None;
         breathing_space.len() == 0
     }
 }
 
 // One origin to express domain
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Position {
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub struct Point {
     // 1-origin
     pub row: i8,
     pub col: i8,
 }
 
-impl Position {
-    pub fn up(&self) -> Position {
-        Position {
+impl Point {
+    pub fn up(&self) -> Point {
+        Point {
             row: self.row - 1,
             col: self.col,
         }
     }
 
-    pub fn down(&self) -> Position {
-        Position {
+    pub fn down(&self) -> Point {
+        Point {
             row: self.row + 1,
             col: self.col,
         }
     }
 
-    pub fn left(&self) -> Position {
-        Position {
+    pub fn left(&self) -> Point {
+        Point {
             row: self.row,
             col: self.col - 1,
         }
     }
 
-    pub fn right(&self) -> Position {
-        Position {
+    pub fn right(&self) -> Point {
+        Point {
             row: self.row,
             col: self.col + 1,
         }
@@ -278,18 +287,18 @@ impl fmt::Display for Stone {
     }
 }
 
-impl TryFrom<String> for Position {
+impl TryFrom<String> for Point {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        let re = Regex::new(r"([0-9]+),([0-9]+)").expect("failed to parse the String to Position");
+        let re = Regex::new(r"([0-9]+),([0-9]+)").expect("failed to parse the String to Point");
         for (_, [row, col]) in re.captures_iter(&value).map(|c| c.extract()) {
             return Ok(Self {
                 row: row.parse::<i8>().expect("failed to parse number"),
                 col: col.parse::<i8>().expect("failed to parse number"),
             });
         }
-        Err("failed to parse, Position pattern not found in the String".to_string())
+        Err("failed to parse, Point pattern not found in the String".to_string())
     }
 }
 
@@ -401,26 +410,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn position_try_from() {
+    fn point_try_from() {
         let given = "0,0".to_string();
-        let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { row: 0, col: 0 });
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { row: 0, col: 0 });
 
         let given = "1,0".to_string();
-        let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { row: 1, col: 0 });
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { row: 1, col: 0 });
 
         let given = "10,0".to_string();
-        let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { row: 10, col: 0 });
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { row: 10, col: 0 });
 
         let given = "10,10".to_string();
-        let result = Position::try_from(given).unwrap();
-        assert_eq!(result, Position { row: 10, col: 10 });
+        let result = Point::try_from(given).unwrap();
+        assert_eq!(result, Point { row: 10, col: 10 });
 
         // failure case
         let given = "abc".to_string();
-        let result = Position::try_from(given);
+        let result = Point::try_from(given);
         assert!(result.is_err());
     }
 
@@ -428,8 +437,8 @@ mod tests {
     fn board_put() {
         let mut board = Board::new();
 
-        let _ = board.put(Stone::Black, Position { row: 1, col: 1 });
-        let _ = board.put(Stone::White, Position { row: 1, col: 2 });
+        let _ = board.put(Stone::Black, Point { row: 1, col: 1 });
+        let _ = board.put(Stone::White, Point { row: 1, col: 2 });
 
         let mut expected = [[None; BOARD_SIZE]; BOARD_SIZE];
         expected[0][0] = Some(Stone::Black);
@@ -447,12 +456,12 @@ mod tests {
         let mut board = Board::new();
         assert!(
             board
-                .can_put(Stone::Black, Position { row: 1, col: 1 })
+                .can_put(Stone::Black, Point { row: 1, col: 1 })
                 .is_ok()
         );
         assert!(
             board
-                .can_put(Stone::White, Position { row: 1, col: 2 })
+                .can_put(Stone::White, Point { row: 1, col: 2 })
                 .is_ok()
         );
 
@@ -460,19 +469,19 @@ mod tests {
         let mut board = Board::new();
         assert!(
             board
-                .can_put(Stone::Black, Position { row: 0, col: 1 })
+                .can_put(Stone::Black, Point { row: 0, col: 1 })
                 .is_err()
         );
         assert!(
             board
-                .can_put(Stone::Black, Position { row: 1, col: 0 })
+                .can_put(Stone::Black, Point { row: 1, col: 0 })
                 .is_err()
         );
         assert!(
             board
                 .can_put(
                     Stone::Black,
-                    Position {
+                    Point {
                         row: BOARD_SIZE as i8 + 1,
                         col: 1
                     }
@@ -483,7 +492,7 @@ mod tests {
             board
                 .can_put(
                     Stone::Black,
-                    Position {
+                    Point {
                         row: 1,
                         col: BOARD_SIZE as i8 + 1
                     }
@@ -491,17 +500,15 @@ mod tests {
                 .is_err()
         );
 
-        board
-            .put(Stone::White, Position { row: 1, col: 1 })
-            .unwrap();
+        board.put(Stone::White, Point { row: 1, col: 1 }).unwrap();
         assert!(
             board
-                .can_put(Stone::White, Position { row: 1, col: 1 })
+                .can_put(Stone::White, Point { row: 1, col: 1 })
                 .is_err()
         );
         assert!(
             board
-                .can_put(Stone::Black, Position { row: 1, col: 1 })
+                .can_put(Stone::Black, Point { row: 1, col: 1 })
                 .is_err()
         );
 
@@ -513,31 +520,17 @@ mod tests {
         // │ ② ├─○ ● ┼─●
         // │ ③ ├─┼─○ ● ┼─
         let mut board = Board::new();
-        board
-            .put(Stone::Black, Position { row: 1, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 2 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 3, col: 3 })
-            .unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 2 }).unwrap();
+        board.put(Stone::Black, Point { row: 3, col: 3 }).unwrap();
 
-        board
-            .put(Stone::White, Position { row: 1, col: 4 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 5 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 3, col: 4 })
-            .unwrap();
+        board.put(Stone::White, Point { row: 1, col: 4 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 3 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 5 }).unwrap();
+        board.put(Stone::White, Point { row: 3, col: 4 }).unwrap();
         assert!(
             board
-                .can_put(Stone::Black, Position { row: 2, col: 4 })
+                .can_put(Stone::Black, Point { row: 2, col: 4 })
                 .is_ok()
         );
     }
@@ -551,21 +544,15 @@ mod tests {
         // │ ② ├─┼─┼─┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::White, Position { row: 1, col: 1 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 1, col: 2 })
-            .unwrap();
+        board.put(Stone::White, Point { row: 1, col: 1 }).unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 2 }).unwrap();
 
         // ┌─────────────
         // │   ① ② ③ ④
         // │ ① ● ○ ┬─┬─┬─
         // │ ② ○ ┼─┼─┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
-        board
-            .put(Stone::Black, Position { row: 2, col: 1 })
-            .unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 1 }).unwrap();
 
         // ┌─────────────
         // │   ① ② ③ ④
@@ -574,10 +561,10 @@ mod tests {
         // │ ③ ├─┼─┼─┼─┼─
         let mut expected = Board::new_with_prisoners(1, 0);
         expected
-            .put(Stone::Black, Position { row: 1, col: 2 })
+            .put(Stone::Black, Point { row: 1, col: 2 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 2, col: 1 })
+            .put(Stone::Black, Point { row: 2, col: 1 })
             .unwrap();
         assert_eq!(board, expected);
 
@@ -588,24 +575,16 @@ mod tests {
         // │ ② ├─┼─○ ┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::Black, Position { row: 1, col: 2 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 1, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 3 })
-            .unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 2 }).unwrap();
+        board.put(Stone::White, Point { row: 1, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 3 }).unwrap();
 
         // ┌─────────────
         // │   ① ② ③ ④
         // │ ① ┌ ○ ● ○ ┬─
         // │ ② ├─┼─○ ┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
-        board
-            .put(Stone::Black, Position { row: 1, col: 4 })
-            .unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 4 }).unwrap();
 
         // ┌─────────────
         // │   ① ② ③ ④
@@ -614,13 +593,13 @@ mod tests {
         // │ ③ ├─┼─┼─┼─┼─
         let mut expected = Board::new_with_prisoners(1, 0);
         expected
-            .put(Stone::Black, Position { row: 1, col: 2 })
+            .put(Stone::Black, Point { row: 1, col: 2 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 2, col: 3 })
+            .put(Stone::Black, Point { row: 2, col: 3 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 1, col: 4 })
+            .put(Stone::Black, Point { row: 1, col: 4 })
             .unwrap();
         assert_eq!(board, expected);
 
@@ -631,34 +610,24 @@ mod tests {
         // │ ② ├─○ ● ○ ┼─
         // │ ③ ├─┼─○ ┼─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::Black, Position { row: 1, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 2 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 4 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 3, col: 3 })
-            .unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 2 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 4 }).unwrap();
+        board.put(Stone::Black, Point { row: 3, col: 3 }).unwrap();
 
         let mut expected = Board::new_with_prisoners(1, 0);
         expected
-            .put(Stone::Black, Position { row: 1, col: 3 })
+            .put(Stone::Black, Point { row: 1, col: 3 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 2, col: 2 })
+            .put(Stone::Black, Point { row: 2, col: 2 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 2, col: 4 })
+            .put(Stone::Black, Point { row: 2, col: 4 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 3, col: 3 })
+            .put(Stone::Black, Point { row: 3, col: 3 })
             .unwrap();
         assert_eq!(board, expected);
 
@@ -669,49 +638,33 @@ mod tests {
         // │ ② ├─○ ● ● ○─
         // │ ③ ├─┼─○ ○─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::Black, Position { row: 1, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 1, col: 4 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 2 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 4 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 5 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 3, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 3, col: 4 })
-            .unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 4 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 2 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 3 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 4 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 5 }).unwrap();
+        board.put(Stone::Black, Point { row: 3, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 3, col: 4 }).unwrap();
 
         let mut expected = Board::new_with_prisoners(2, 0);
         expected
-            .put(Stone::Black, Position { row: 1, col: 3 })
+            .put(Stone::Black, Point { row: 1, col: 3 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 1, col: 4 })
+            .put(Stone::Black, Point { row: 1, col: 4 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 2, col: 2 })
+            .put(Stone::Black, Point { row: 2, col: 2 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 2, col: 5 })
+            .put(Stone::Black, Point { row: 2, col: 5 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 3, col: 3 })
+            .put(Stone::Black, Point { row: 3, col: 3 })
             .unwrap();
         expected
-            .put(Stone::Black, Position { row: 3, col: 4 })
+            .put(Stone::Black, Point { row: 3, col: 4 })
             .unwrap();
         assert_eq!(board, expected);
     }
@@ -720,7 +673,7 @@ mod tests {
     fn board_find_group() {
         // no stone should be empty group.
         let board = Board::new();
-        let group = board.find_group(Stone::Black, Position { row: 1, col: 1 });
+        let group = board.find_group(Stone::Black, Point { row: 1, col: 1 });
         assert_eq!(group, vec![]);
 
         // single stone should be group.
@@ -730,15 +683,11 @@ mod tests {
         // │ ② ├─┼─┼─┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::White, Position { row: 1, col: 1 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 1, col: 2 })
-            .unwrap();
+        board.put(Stone::White, Point { row: 1, col: 1 }).unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 2 }).unwrap();
 
-        let group = board.find_group(Stone::White, Position { row: 1, col: 1 });
-        assert_eq!(group, vec![Position { row: 1, col: 1 }]);
+        let group = board.find_group(Stone::White, Point { row: 1, col: 1 });
+        assert_eq!(group, vec![Point { row: 1, col: 1 }]);
 
         // multiple stones should be group.
         // ┌─────────────
@@ -747,25 +696,21 @@ mod tests {
         // │ ② ├─┼─┼─┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::White, Position { row: 1, col: 1 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 1, col: 2 })
-            .unwrap();
+        board.put(Stone::White, Point { row: 1, col: 1 }).unwrap();
+        board.put(Stone::White, Point { row: 1, col: 2 }).unwrap();
 
-        let group = board.find_group(Stone::White, Position { row: 1, col: 1 });
+        let group = board.find_group(Stone::White, Point { row: 1, col: 1 });
         assert_eq!(
             group,
-            vec![Position { row: 1, col: 1 }, Position { row: 1, col: 2 }]
+            vec![Point { row: 1, col: 1 }, Point { row: 1, col: 2 }]
         );
 
-        // and also can refer another position
-        let mut group = board.find_group(Stone::White, Position { row: 1, col: 2 });
+        // and also can refer another point
+        let mut group = board.find_group(Stone::White, Point { row: 1, col: 2 });
         group.sort_by_key(|p| p.col);
         assert_eq!(
             group,
-            vec![Position { row: 1, col: 1 }, Position { row: 1, col: 2 }]
+            vec![Point { row: 1, col: 1 }, Point { row: 1, col: 2 }]
         );
 
         // complex stone series should be group.
@@ -775,40 +720,26 @@ mod tests {
         // │ ② ├─● ● ● ●
         // │ ③ ├─┼─● ┼─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::White, Position { row: 1, col: 1 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 1, col: 2 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 2 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 4 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 2, col: 5 })
-            .unwrap();
-        board
-            .put(Stone::White, Position { row: 3, col: 3 })
-            .unwrap();
-        let mut group = board.find_group(Stone::White, Position { row: 1, col: 2 });
+        board.put(Stone::White, Point { row: 1, col: 1 }).unwrap();
+        board.put(Stone::White, Point { row: 1, col: 2 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 2 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 3 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 4 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 5 }).unwrap();
+        board.put(Stone::White, Point { row: 3, col: 3 }).unwrap();
+        let mut group = board.find_group(Stone::White, Point { row: 1, col: 2 });
         group.sort_by_key(|p| p.col);
         group.sort_by_key(|p| p.row);
         assert_eq!(
             group,
             vec![
-                Position { row: 1, col: 1 },
-                Position { row: 1, col: 2 },
-                Position { row: 2, col: 2 },
-                Position { row: 2, col: 3 },
-                Position { row: 2, col: 4 },
-                Position { row: 2, col: 5 },
-                Position { row: 3, col: 3 },
+                Point { row: 1, col: 1 },
+                Point { row: 1, col: 2 },
+                Point { row: 2, col: 2 },
+                Point { row: 2, col: 3 },
+                Point { row: 2, col: 4 },
+                Point { row: 2, col: 5 },
+                Point { row: 3, col: 3 },
             ]
         )
     }
@@ -821,21 +752,13 @@ mod tests {
         // │ ② ├─○ ┼─○ ┼─
         // │ ③ ├─┼─○ ┼─┼─
         let mut board = Board::new();
-        board
-            .put(Stone::Black, Position { row: 1, col: 3 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 2 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 2, col: 4 })
-            .unwrap();
-        board
-            .put(Stone::Black, Position { row: 3, col: 3 })
-            .unwrap();
+        board.put(Stone::Black, Point { row: 1, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 2 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 4 }).unwrap();
+        board.put(Stone::Black, Point { row: 3, col: 3 }).unwrap();
         assert!(
             board
-                .can_put(Stone::White, Position { row: 2, col: 3 })
+                .can_put(Stone::White, Point { row: 2, col: 3 })
                 .is_err()
         );
     }

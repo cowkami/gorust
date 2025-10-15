@@ -22,7 +22,7 @@ fn main() -> Result<(), String> {
         //     .expect("failed to read line");
         // let command = Command::PutStone {
         //     stone: game.turn,
-        //     position: raw_command.try_into().unwrap(),
+        //     point: raw_command.try_into().unwrap(),
         // };
         // game.play(command).unwrap();
         // println!("{}", game.board);

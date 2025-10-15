@@ -1,27 +1,9 @@
-use crate::board::{BOARD_SIZE, Position};
 use crate::bot::Bot;
 use crate::game::{Command, Game};
 use rand::prelude::*;
 
 pub struct RandomBot {
     random_generator: ThreadRng,
-}
-
-impl RandomBot {
-    fn propose_next_command(&mut self, game: &Game) -> Command {
-        // make new stone
-        let stone = game.turn.clone();
-
-        // make new position
-        let row = self.random_generator.random_range(1..=BOARD_SIZE) as i8;
-        let col = self.random_generator.random_range(1..=BOARD_SIZE) as i8;
-        let position = Position { row, col };
-
-        // make new command
-        let command = Command::PutStone { stone, position };
-
-        command
-    }
 }
 
 impl Bot for RandomBot {
@@ -32,19 +14,20 @@ impl Bot for RandomBot {
     }
 
     fn next_command(&mut self, game: &Game) -> Command {
-        // search randomly to put stone
-        loop {
-            // generate command to try
-            let command = self.propose_next_command(&game);
-
-            // copy game to try
-            let mut virtual_game = game.clone();
-
-            // if can play, return command.
-            match virtual_game.play(command.clone()) {
-                Ok(_) => return command,
-                Err(_) => continue,
-            }
+        // to prevent mutation of the game, clone the game
+        let mut virtual_game = game.clone();
+        // todo: refactor not to use Board directly
+        let available_points = virtual_game.board.find_available_points(game.turn);
+        let random_point = available_points.choose(&mut self.random_generator);
+        // make new command.
+        // if there is some available point, put stone.
+        // if no, pass the turn
+        match random_point {
+            Some(&point) => Command::PutStone {
+                stone: game.turn,
+                point,
+            },
+            None => Command::Pass,
         }
     }
 }
