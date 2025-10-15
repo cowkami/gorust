@@ -74,11 +74,7 @@ impl Board {
         // validate for go rule
         match self.can_put(stone, position.clone()) {
             Ok(_) => {
-                // if the stone kills the opponent's stones,
-
-                // take these stones from the board,
-                // }
-                // put the stone on the position
+                self.kill(stone, position.clone());
                 self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
                 Ok(())
             }
@@ -111,8 +107,8 @@ impl Board {
         // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
     }
 
-    pub fn kill(&mut self, position: Position) {
-        let groups = self.find_groups_can_kill(position.clone());
+    pub fn kill(&mut self, stone: Stone, position: Position) {
+        let groups = self.find_groups_can_kill(stone, position.clone());
         if groups.len() == 0 {
             return;
         }
@@ -122,25 +118,19 @@ impl Board {
                 self.space[p.row as usize - 1][p.col as usize - 1] = None;
             }
             // add numbers of group to prisoners
-            match self.get(group[0].clone()) {
-                BoardCell::Space(Some(Stone::Black)) => {
-                    self.white_prisoners += group.len();
-                }
-                BoardCell::Space(Some(Stone::White)) => {
+            match stone {
+                Stone::Black => {
                     self.black_prisoners += group.len();
                 }
-                _ => (),
+                Stone::White => {
+                    self.white_prisoners += group.len();
+                }
             }
         }
     }
 
-    fn find_groups_can_kill(&self, position: Position) -> Vec<Vec<Position>> {
+    fn find_groups_can_kill(&self, stone: Stone, position: Position) -> Vec<Vec<Position>> {
         // todo: refacter not to use unwrap
-        let opponent_stone = match self.get(position.clone()) {
-            BoardCell::Space(Some(s)) => Some(s.flip()),
-            _ => None,
-        }
-        .unwrap();
         vec![
             // find opponent's stone from around
             position.up(),
@@ -151,11 +141,11 @@ impl Board {
         .into_iter()
         .filter_map(|p| match self.get(p.clone()) {
             // choose opponent's stones
-            BoardCell::Space(Some(s)) if s == opponent_stone => Some(p),
+            BoardCell::Space(Some(s)) if s == stone.flip() => Some(p),
             _ => None,
         })
         // find groups of opponent's stones
-        .map(|p| self.find_group(opponent_stone, p))
+        .map(|p| self.find_group(stone.flip(), p))
         // choose group that breathing space is 1 and given position
         .filter_map(|g| {
             let breathing_space = self.find_breathing_space(g.clone());
@@ -500,7 +490,7 @@ mod tests {
         );
     }
 
-    // #[test]
+    #[test]
     fn board_kill() {
         // should kill corner stone
         // ┌─────────────
@@ -540,6 +530,47 @@ mod tests {
         assert_eq!(board, expected);
 
         // should kill side stone
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌ ○ ● ┬─┬─
+        // │ ② ├─┼─○ ┼─┼─
+        // │ ③ ├─┼─┼─┼─┼─
+        let mut board = Board::new();
+        board
+            .put(Stone::Black, Position { row: 1, col: 2 })
+            .unwrap();
+        board
+            .put(Stone::White, Position { row: 1, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 3 })
+            .unwrap();
+
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌ ○ ● ○ ┬─
+        // │ ② ├─┼─○ ┼─┼─
+        // │ ③ ├─┼─┼─┼─┼─
+        board
+            .put(Stone::Black, Position { row: 1, col: 4 })
+            .unwrap();
+
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌ ○ ┬─○ ┬─
+        // │ ② ├─┼─○ ┼─┼─
+        // │ ③ ├─┼─┼─┼─┼─
+        let mut expected = Board::new_with_prisoners(0, 1);
+        expected
+            .put(Stone::Black, Position { row: 1, col: 2 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 2, col: 3 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 1, col: 4 })
+            .unwrap();
+        assert_eq!(board, expected);
 
         // should kill floated stone
 
@@ -549,7 +580,7 @@ mod tests {
     #[test]
     fn board_find_group() {
         // no stone should be empty group.
-        let mut board = Board::new();
+        let board = Board::new();
         let group = board.find_group(Stone::Black, Position { row: 1, col: 1 });
         assert_eq!(group, vec![]);
 
