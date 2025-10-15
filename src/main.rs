@@ -30,13 +30,19 @@ fn main() -> Result<(), String> {
         // play computer
         println!("computer's turn.");
         let command = bot_player2.next_command(&game);
-        game.play(command).unwrap();
+        if game.play(command.clone()).is_err() {
+            panic!("error");
+        };
+        println!("command: {:?}", command);
         println!("{}", game.board);
 
         // play computer
         println!("computer's turn.");
         let command = bot_player.next_command(&game);
-        game.play(command).unwrap();
+        if game.play(command.clone()).is_err() {
+            panic!("error");
+        }
+        println!("command: {:?}", command);
         println!("{}", game.board);
     }
 }

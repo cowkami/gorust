@@ -96,7 +96,7 @@ impl Board {
         // Go rules
         // #################
         // 1. cannot put a stone on the existing stone.
-        else if matches!(board_cell, BoardCell::Space(Some(s)) if s == stone) {
+        else if matches!(board_cell, BoardCell::Space(Some(_))) {
             Err(format!(
                 "a stone is already on the position: {:?}",
                 position
@@ -221,6 +221,7 @@ impl Board {
     }
 
     fn is_suicide(&mut self, stone: Stone, position: Position) -> bool {
+        // todo: refactor? implementing temporary put method is very considerable.
         // put stone temporary
         self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
         // calculate breathing space of put stone
@@ -489,6 +490,20 @@ mod tests {
                         col: BOARD_SIZE as i8 + 1
                     }
                 )
+                .is_err()
+        );
+
+        board
+            .put(Stone::White, Position { row: 1, col: 1 })
+            .unwrap();
+        assert!(
+            board
+                .can_put(Stone::White, Position { row: 1, col: 1 })
+                .is_err()
+        );
+        assert!(
+            board
+                .can_put(Stone::Black, Position { row: 1, col: 1 })
                 .is_err()
         );
     }

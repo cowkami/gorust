@@ -31,7 +31,7 @@ impl Game {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Command {
     PutStone { stone: Stone, position: Position },
 }
