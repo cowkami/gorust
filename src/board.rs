@@ -82,7 +82,7 @@ impl Board {
         }
     }
 
-    fn can_put(&self, stone: Stone, position: Position) -> Result<(), String> {
+    fn can_put(&mut self, stone: Stone, position: Position) -> Result<(), String> {
         let board_cell = self.get(position.clone());
 
         // validate position range
@@ -102,6 +102,8 @@ impl Board {
                 position
             ))
         // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
+        } else if self.is_suicide(stone, position.clone()) {
+            Err(format!("it's a suicide move."))
         } else {
             Ok(())
         }
@@ -216,6 +218,17 @@ impl Board {
         }
 
         group
+    }
+
+    fn is_suicide(&mut self, stone: Stone, position: Position) -> bool {
+        // put stone temporary
+        self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
+        // calculate breathing space of put stone
+        let group = self.find_group(stone, position.clone());
+        let breathing_space = self.find_breathing_space(group);
+        // remove stone put temporary
+        self.space[position.row as usize - 1][position.col as usize - 1] = None;
+        breathing_space.len() == 0
     }
 }
 
@@ -431,7 +444,7 @@ mod tests {
 
     #[test]
     fn board_can_put() {
-        let board = Board::new();
+        let mut board = Board::new();
 
         // ok
         assert!(
@@ -749,5 +762,32 @@ mod tests {
                 Position { row: 3, col: 3 },
             ]
         )
+    }
+
+    #[test]
+    fn test_is_suicide() {
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌─┬─○ ┬─┬─
+        // │ ② ├─○ ┼─○ ┼─
+        // │ ③ ├─┼─○ ┼─┼─
+        let mut board = Board::new();
+        board
+            .put(Stone::Black, Position { row: 1, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 2 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 4 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 3, col: 3 })
+            .unwrap();
+        assert!(
+            board
+                .can_put(Stone::White, Position { row: 2, col: 3 })
+                .is_err()
+        );
     }
 }
