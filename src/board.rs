@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn board_can_put() {
-        let mut board = Board::new();
+        let board = Board::new();
 
         // ok
         assert!(
@@ -573,8 +573,95 @@ mod tests {
         assert_eq!(board, expected);
 
         // should kill floated stone
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌─┬─○ ┬─┬─
+        // │ ② ├─○ ● ○ ┼─
+        // │ ③ ├─┼─○ ┼─┼─
+        let mut board = Board::new();
+        board
+            .put(Stone::Black, Position { row: 1, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 2 })
+            .unwrap();
+        board
+            .put(Stone::White, Position { row: 2, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 4 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 3, col: 3 })
+            .unwrap();
+
+        let mut expected = Board::new_with_prisoners(0, 1);
+        expected
+            .put(Stone::Black, Position { row: 1, col: 3 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 2, col: 2 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 2, col: 4 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 3, col: 3 })
+            .unwrap();
+        assert_eq!(board, expected);
 
         // should kill multiple stones
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌─┬─○ ○─┬─
+        // │ ② ├─○ ● ● ○─
+        // │ ③ ├─┼─○ ○─┼─
+        let mut board = Board::new();
+        board
+            .put(Stone::Black, Position { row: 1, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 1, col: 4 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 2 })
+            .unwrap();
+        board
+            .put(Stone::White, Position { row: 2, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::White, Position { row: 2, col: 4 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 5 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 3, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 3, col: 4 })
+            .unwrap();
+
+        let mut expected = Board::new_with_prisoners(0, 1);
+        expected
+            .put(Stone::Black, Position { row: 1, col: 3 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 1, col: 4 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 2, col: 2 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 2, col: 5 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 3, col: 3 })
+            .unwrap();
+        expected
+            .put(Stone::Black, Position { row: 3, col: 4 })
+            .unwrap();
+        assert_eq!(board, expected);
     }
 
     #[test]
