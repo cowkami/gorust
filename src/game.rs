@@ -4,6 +4,7 @@ use crate::board::{Board, Point, Stone};
 pub struct Game {
     pub turn: Stone,
     pub board: Board,
+    pass_count: u8,
 }
 
 impl Game {
@@ -11,20 +12,28 @@ impl Game {
         Game {
             turn: Stone::Black,
             board: Board::new(),
+            pass_count: 0,
         }
     }
 
     pub fn play(&mut self, command: Command) -> Result<(), String> {
+        // double pass means game set
+        if self.pass_count == 2 {
+            return Ok(());
+        }
         match command {
-            Command::PutStone { stone, point } => match self.board.put(stone, point) {
+            Command::Move { stone, point } => match self.board.put(stone, point) {
                 Ok(_) => {
                     self.flip_turn();
+                    // game continues as long as someone puts stone
+                    self.pass_count = 0;
                     Ok(())
                 }
                 Err(err) => Err(format!("failed to execute command: {}", err)),
             },
             Command::Pass => {
                 self.flip_turn();
+                self.pass_count += 1;
                 Ok(())
             }
         }
@@ -37,7 +46,7 @@ impl Game {
 
 #[derive(Clone, Debug)]
 pub enum Command {
-    PutStone { stone: Stone, point: Point },
+    Move { stone: Stone, point: Point },
     Pass,
 }
 

@@ -23,7 +23,7 @@ impl Bot for RandomBot {
         // if there is some available point, put stone.
         // if no, pass the turn
         match random_point {
-            Some(&point) => Command::PutStone {
+            Some(&point) => Command::Move {
                 stone: game.turn,
                 point,
             },
