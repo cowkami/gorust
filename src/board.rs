@@ -1,5 +1,9 @@
 use regex::Regex;
-use std::{cmp, collections::HashSet, fmt};
+use std::{
+    cmp,
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 pub const BOARD_SIZE: usize = 9;
 const BLACK: &str = "○";
@@ -71,11 +75,8 @@ impl Board {
         match self.can_put(stone, position.clone()) {
             Ok(_) => {
                 // if the stone kills the opponent's stones,
-                // if self.can_kill(stone, position) {
-                //     // take these stones from the board,
-                //     if self.kill(stone, position).is_err() {
-                //         return Err("cannot kill stones".to_string());
-                //     }
+
+                // take these stones from the board,
                 // }
                 // put the stone on the position
                 self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
@@ -110,9 +111,38 @@ impl Board {
         // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
     }
 
-    pub fn can_kill(&mut self, stone: Stone, position: Position) -> bool {
-        // collect adjacent opponent's stones
-        let adjacent_stones: Vec<Position> = vec![
+    pub fn kill(&mut self, position: Position) {
+        let groups = self.find_groups_can_kill(position.clone());
+        if groups.len() == 0 {
+            return;
+        }
+        // remove all groups
+        for group in groups.iter() {
+            for p in group.iter() {
+                self.space[p.row as usize - 1][p.col as usize - 1] = None;
+            }
+            // add numbers of group to prisoners
+            match self.get(group[0].clone()) {
+                BoardCell::Space(Some(Stone::Black)) => {
+                    self.white_prisoners += group.len();
+                }
+                BoardCell::Space(Some(Stone::White)) => {
+                    self.black_prisoners += group.len();
+                }
+                _ => (),
+            }
+        }
+    }
+
+    fn find_groups_can_kill(&self, position: Position) -> Vec<Vec<Position>> {
+        // todo: refacter not to use unwrap
+        let opponent_stone = match self.get(position.clone()) {
+            BoardCell::Space(Some(s)) => Some(s.flip()),
+            _ => None,
+        }
+        .unwrap();
+        vec![
+            // find opponent's stone from around
             position.up(),
             position.down(),
             position.left(),
@@ -120,25 +150,53 @@ impl Board {
         ]
         .into_iter()
         .filter_map(|p| match self.get(p.clone()) {
-            BoardCell::Space(Some(s)) if s == stone.flip() => Some(p),
+            // choose opponent's stones
+            BoardCell::Space(Some(s)) if s == opponent_stone => Some(p),
             _ => None,
         })
-        .collect();
-
-        // stone groups connected with adjacent
-        let stone_groups = adjacent_stones
-            .into_iter()
-            .map(|p| self.find_group(stone, p));
-
-        todo!()
+        // find groups of opponent's stones
+        .map(|p| self.find_group(opponent_stone, p))
+        // choose group that breathing space is 1 and given position
+        .filter_map(|g| {
+            let breathing_space = self.find_breathing_space(g.clone());
+            if breathing_space.len() == 1 && breathing_space[0] == position {
+                Some(g)
+            } else {
+                None
+            }
+        })
+        .collect()
     }
 
-    pub fn kill(&self, stone: Stone, position: Position) -> Result<(), String> {
-        // and add them to prisoners
-        todo!()
+    fn find_breathing_space(&self, group: Vec<Position>) -> Vec<Position> {
+        // todo: refoctor not to use unwrap
+        if group.len() == 0 {
+            return vec![];
+        }
+        let mut breathing_points = vec![];
+        let mut checked_points = HashSet::new();
+        let mut check_points = vec![];
+        for p in group.iter() {
+            // group points are all opponent's color stones, so no need to check.
+            checked_points.insert(p.clone());
+            check_points.append(&mut vec![p.up(), p.down(), p.right(), p.left()]);
+        }
+        // check around the position
+        while let Some(check_point) = check_points.pop() {
+            // is check_point already checked?
+            if checked_points.contains(&check_point) {
+                continue;
+            }
+            // if the cell is empty
+            if matches!(self.get(check_point.clone()), BoardCell::Space(None)) {
+                breathing_points.push(check_point.clone());
+                checked_points.insert(check_point);
+            }
+        }
+        breathing_points
     }
 
-    fn find_group(&mut self, stone: Stone, start_position: Position) -> Vec<Position> {
+    fn find_group(&self, stone: Stone, start_position: Position) -> Vec<Position> {
         let mut group = vec![];
         let mut checked_positions = HashSet::new();
         let mut check_positions = vec![start_position.clone()];
@@ -174,6 +232,7 @@ impl Board {
 // One origin to express domain
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Position {
+    // 1-origin
     pub row: i8,
     pub col: i8,
 }
@@ -442,7 +501,7 @@ mod tests {
     }
 
     // #[test]
-    fn board_can_kill() {
+    fn board_kill() {
         // should kill corner stone
         // ┌─────────────
         // │   ① ② ③ ④
