@@ -33,7 +33,7 @@ pub enum BoardCell {
     Space(Option<Stone>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Board {
     space: [[Option<Stone>; BOARD_SIZE]; BOARD_SIZE],
     pub black_prisoners: usize,
@@ -74,7 +74,7 @@ impl Board {
         // validate for go rule
         match self.can_put(stone, position.clone()) {
             Ok(_) => {
-                self.kill(stone, position.clone());
+                self.kill_by(stone, position.clone());
                 self.space[position.row as usize - 1][position.col as usize - 1] = Some(stone);
                 Ok(())
             }
@@ -101,13 +101,13 @@ impl Board {
                 "a stone is already on the position: {:?}",
                 position
             ))
+        // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
         } else {
             Ok(())
         }
-        // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
     }
 
-    pub fn kill(&mut self, stone: Stone, position: Position) {
+    pub fn kill_by(&mut self, stone: Stone, position: Position) {
         let groups = self.find_groups_can_kill(stone, position.clone());
         if groups.len() == 0 {
             return;
@@ -384,16 +384,6 @@ impl fmt::Display for Board {
     }
 }
 
-impl cmp::PartialEq for Board {
-    fn eq(&self, other: &Board) -> bool {
-        self.space == other.space
-    }
-
-    fn ne(&self, other: &Board) -> bool {
-        self.space != other.space
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -520,7 +510,7 @@ mod tests {
         // │ ① ┌ ○ ┬─┬─┬─
         // │ ② ○ ┼─┼─┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
-        let mut expected = Board::new_with_prisoners(0, 1);
+        let mut expected = Board::new_with_prisoners(1, 0);
         expected
             .put(Stone::Black, Position { row: 1, col: 2 })
             .unwrap();
@@ -560,7 +550,7 @@ mod tests {
         // │ ① ┌ ○ ┬─○ ┬─
         // │ ② ├─┼─○ ┼─┼─
         // │ ③ ├─┼─┼─┼─┼─
-        let mut expected = Board::new_with_prisoners(0, 1);
+        let mut expected = Board::new_with_prisoners(1, 0);
         expected
             .put(Stone::Black, Position { row: 1, col: 2 })
             .unwrap();
@@ -595,7 +585,7 @@ mod tests {
             .put(Stone::Black, Position { row: 3, col: 3 })
             .unwrap();
 
-        let mut expected = Board::new_with_prisoners(0, 1);
+        let mut expected = Board::new_with_prisoners(1, 0);
         expected
             .put(Stone::Black, Position { row: 1, col: 3 })
             .unwrap();
@@ -642,7 +632,7 @@ mod tests {
             .put(Stone::Black, Position { row: 3, col: 4 })
             .unwrap();
 
-        let mut expected = Board::new_with_prisoners(0, 1);
+        let mut expected = Board::new_with_prisoners(2, 0);
         expected
             .put(Stone::Black, Position { row: 1, col: 3 })
             .unwrap();
