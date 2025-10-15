@@ -98,7 +98,9 @@ impl Board {
                 position
             ))
         // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
-        } else if self.is_suicide(stone, position.clone()) {
+        } else if self.is_suicide(stone, position.clone())
+            && self.find_groups_can_kill(stone, position.clone()).len() == 0
+        {
             Err(format!("it's a suicide move."))
         } else {
             Ok(())
@@ -441,9 +443,8 @@ mod tests {
 
     #[test]
     fn board_can_put() {
-        let mut board = Board::new();
-
         // ok
+        let mut board = Board::new();
         assert!(
             board
                 .can_put(Stone::Black, Position { row: 1, col: 1 })
@@ -456,6 +457,7 @@ mod tests {
         );
 
         // ng
+        let mut board = Board::new();
         assert!(
             board
                 .can_put(Stone::Black, Position { row: 0, col: 1 })
@@ -501,6 +503,42 @@ mod tests {
             board
                 .can_put(Stone::Black, Position { row: 1, col: 1 })
                 .is_err()
+        );
+
+        // ok
+        // when can kill, can put regardless suicide move.
+        // ┌─────────────
+        // │   ① ② ③ ④
+        // │ ① ┌─┬─○ ● ┬─
+        // │ ② ├─○ ● ┼─●
+        // │ ③ ├─┼─○ ● ┼─
+        let mut board = Board::new();
+        board
+            .put(Stone::Black, Position { row: 1, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 2, col: 2 })
+            .unwrap();
+        board
+            .put(Stone::Black, Position { row: 3, col: 3 })
+            .unwrap();
+
+        board
+            .put(Stone::White, Position { row: 1, col: 4 })
+            .unwrap();
+        board
+            .put(Stone::White, Position { row: 2, col: 3 })
+            .unwrap();
+        board
+            .put(Stone::White, Position { row: 2, col: 5 })
+            .unwrap();
+        board
+            .put(Stone::White, Position { row: 3, col: 4 })
+            .unwrap();
+        assert!(
+            board
+                .can_put(Stone::Black, Position { row: 2, col: 4 })
+                .is_ok()
         );
     }
 

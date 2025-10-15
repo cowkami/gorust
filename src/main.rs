@@ -28,7 +28,7 @@ fn main() -> Result<(), String> {
         // println!("{}", game.board);
 
         // play computer
-        println!("computer's turn.");
+        println!("{:?}: computer's turn.", game.turn);
         let command = bot_player2.next_command(&game);
         if game.play(command.clone()).is_err() {
             panic!("error");
@@ -37,7 +37,7 @@ fn main() -> Result<(), String> {
         println!("{}", game.board);
 
         // play computer
-        println!("computer's turn.");
+        println!("{:?}: computer's turn.", game.turn);
         let command = bot_player.next_command(&game);
         if game.play(command.clone()).is_err() {
             panic!("error");
