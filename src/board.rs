@@ -29,28 +29,32 @@ pub enum BoardCell {
     Space(Option<Stone>),
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Board {
-    space: [[Option<Stone>; BOARD_SIZE]; BOARD_SIZE],
+    space: Space,
     pub black_prisoners: usize,
     pub white_prisoners: usize,
+    previous_spaces: Vec<Space>,
 }
 
+type Space = [[Option<Stone>; BOARD_SIZE]; BOARD_SIZE];
+
 impl Board {
-    pub fn new() -> Board {
-        Board {
-            space: [[None; BOARD_SIZE]; BOARD_SIZE],
+    pub fn new() -> Self {
+        let space = [[None; BOARD_SIZE]; BOARD_SIZE];
+        Self {
+            space,
             black_prisoners: 0,
             white_prisoners: 0,
+            previous_spaces: vec![space],
         }
     }
 
-    pub fn new_with_prisoners(black_prisoners: usize, white_prisoners: usize) -> Board {
-        Board {
-            space: [[None; BOARD_SIZE]; BOARD_SIZE],
-            black_prisoners,
-            white_prisoners,
-        }
+    pub fn new_with_prisoners(black_prisoners: usize, white_prisoners: usize) -> Self {
+        let mut board = Self::new();
+        board.black_prisoners += black_prisoners;
+        board.white_prisoners += white_prisoners;
+        board
     }
 
     fn get(&self, point: Point) -> BoardCell {
@@ -72,6 +76,7 @@ impl Board {
             Ok(_) => {
                 self.kill_by(stone, point);
                 self.space[point.row as usize - 1][point.col as usize - 1] = Some(stone);
+                self.previous_spaces.push(self.space.clone());
                 Ok(())
             }
             Err(err) => Err(format!("cannot put stone: {}", err)),
@@ -103,20 +108,25 @@ impl Board {
         // #################
         // Go rules
         // #################
-        // 1. cannot put a stone on the existing stone.
+        // cannot put a stone on the existing stone.
         else if matches!(board_cell, BoardCell::Space(Some(_))) {
             Err(format!("a stone is already on the point: {:?}", point))
-        // 2. cannot put a stone if the stones connected with it will be killed. but can put when can kill.
+        // cannot put a stone if the stones connected with it will be killed. but can put when can kill.
         } else if self.is_suicide(stone, point)
             && self.find_groups_can_kill(stone, point).len() == 0
         {
             Err(format!("it's a suicide move."))
+        }
+        // cannot put a stone make same space as the last space.
+        // ko is occurred.
+        else if self.is_same_last_space(stone, point) {
+            Err(format!("cannot take KO at {:?} for {:?}", point, stone))
         } else {
             Ok(())
         }
     }
 
-    pub fn kill_by(&mut self, stone: Stone, point: Point) {
+    fn kill_by(&mut self, stone: Stone, point: Point) {
         let groups = self.find_groups_can_kill(stone, point);
         if groups.len() == 0 {
             return;
@@ -205,7 +215,6 @@ impl Board {
             if checked_points.contains(&point) {
                 continue;
             }
-
             // check if the node's color is same
             if matches!(
                 self.get(point),
@@ -237,6 +246,33 @@ impl Board {
         // remove stone put temporary
         self.space[point.row as usize - 1][point.col as usize - 1] = None;
         breathing_space.len() == 0
+    }
+
+    fn is_same_last_space(&mut self, stone: Stone, point: Point) -> bool {
+        let history_length = self.previous_spaces.len();
+        if history_length < 4 {
+            return false;
+        }
+        // todo: refactor? implementing temporary put method is very considerable.
+        // put stone temporary
+        let mut temp_board = Self::new();
+        temp_board.space = self.space;
+        temp_board.kill_by(stone, point);
+        temp_board.space[point.row as usize - 1][point.col as usize - 1] = Some(stone);
+        // check
+        temp_board.space == self.previous_spaces[history_length - 2]
+    }
+}
+
+impl PartialEq for Board {
+    fn eq(&self, other: &Self) -> bool {
+        self.space == other.space
+            && self.black_prisoners == other.black_prisoners
+            && self.white_prisoners == other.white_prisoners
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
     }
 }
 
@@ -760,6 +796,52 @@ mod tests {
             board
                 .can_put(Stone::White, Point { row: 2, col: 3 })
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn test_can_take_ko() {
+        // ┌─────────────
+        // │    ①②③④⑤⑥
+        // │ ① ┌┬○●┬┬
+        // │ ② ├○┼○●┼
+        // │ ③ ├┼○●┼┼
+
+        let mut board = Board::new();
+        board.put(Stone::Black, Point { row: 1, col: 3 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 2 }).unwrap();
+        board.put(Stone::Black, Point { row: 2, col: 4 }).unwrap();
+        board.put(Stone::Black, Point { row: 3, col: 3 }).unwrap();
+        board.put(Stone::White, Point { row: 1, col: 4 }).unwrap();
+        board.put(Stone::White, Point { row: 2, col: 5 }).unwrap();
+        board.put(Stone::White, Point { row: 3, col: 4 }).unwrap();
+
+        // ┌─────────────
+        // │    ①②③④⑤⑥
+        // │ ① ┌┬○●┬┬
+        // │ ② ├○●┼●┼
+        // │ ③ ├┼○●┼┼
+        board.put(Stone::White, Point { row: 2, col: 3 }).unwrap();
+
+        // this is prohibited
+        assert!(
+            board
+                .can_put(Stone::Black, Point { row: 2, col: 4 })
+                .is_err()
+        );
+
+        // this is ok because black done KO treat.
+        // ┌─────────────
+        // │    ①②③④⑤⑥
+        // │ ① ○┬○●┬┬
+        // │ ② ├○●┼●┼
+        // │ ③ ├┼○●┼●
+        board.put(Stone::Black, Point { row: 1, col: 1 }).unwrap();
+        board.put(Stone::White, Point { row: 3, col: 6 }).unwrap();
+        assert!(
+            board
+                .can_put(Stone::Black, Point { row: 2, col: 4 })
+                .is_ok()
         );
     }
 }
