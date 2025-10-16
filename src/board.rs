@@ -806,7 +806,6 @@ mod tests {
         // │ ① ┌┬○●┬┬
         // │ ② ├○┼○●┼
         // │ ③ ├┼○●┼┼
-
         let mut board = Board::new();
         board.put(Stone::Black, Point { row: 1, col: 3 }).unwrap();
         board.put(Stone::Black, Point { row: 2, col: 2 }).unwrap();
@@ -830,7 +829,7 @@ mod tests {
                 .is_err()
         );
 
-        // this is ok because black done KO treat.
+        // this is ok because black done KO threat.
         // ┌─────────────
         // │    ①②③④⑤⑥
         // │ ① ○┬○●┬┬
