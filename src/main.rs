@@ -1,5 +1,6 @@
 pub mod board;
 pub mod bot;
+pub mod frac;
 pub mod game;
 
 use bot::{Bot, RandomBot};
