@@ -18,12 +18,16 @@ impl Bot for RandomBot {
         let mut virtual_game = game.clone();
         // todo: refactor not to use Board directly
         let available_points = virtual_game.board.find_available_points(game.turn);
+        let available_points = available_points
+            .into_iter()
+            .filter(|&p| !virtual_game.board.is_eye(game.turn, p));
+        // check if point fills my territory
         let random_point = available_points.choose(&mut self.random_generator);
         // make new command.
         // if there is some available point, put stone.
         // if no, pass the turn
         match random_point {
-            Some(&point) => Command::Move {
+            Some(point) => Command::Move {
                 stone: game.turn,
                 point,
             },

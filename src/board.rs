@@ -57,7 +57,7 @@ impl Board {
         board
     }
 
-    fn get(&self, point: Point) -> BoardCell {
+    pub fn get(&self, point: Point) -> BoardCell {
         // check point range
         if point.row <= 0
             || BOARD_SIZE < point.row as usize
@@ -150,7 +150,7 @@ impl Board {
 
     fn find_groups_can_kill(&self, stone: Stone, point: Point) -> Vec<Vec<Point>> {
         // todo: refacter not to use unwrap
-        vec![
+        [
             // find opponent's stone from around
             point.up(),
             point.down(),
@@ -158,11 +158,8 @@ impl Board {
             point.right(),
         ]
         .into_iter()
-        .filter_map(|p| match self.get(p) {
-            // choose opponent's stones
-            BoardCell::Space(Some(s)) if s == stone.flip() => Some(p),
-            _ => None,
-        })
+        // choose opponent's stones
+        .filter(|&p| matches!(self.get(p), BoardCell::Space(Some(s)) if s == stone.flip()))
         // find groups of opponent's stones
         .map(|p| self.find_group(stone.flip(), p))
         // choose group that breathing space is 1 and given point
@@ -261,6 +258,28 @@ impl Board {
         temp_board.space[point.row as usize - 1][point.col as usize - 1] = Some(stone);
         // check
         temp_board.space == self.previous_spaces[history_length - 2]
+    }
+
+    pub fn is_eye(&self, stone: Stone, point: Point) -> bool {
+        [
+            point.up().right(),
+            point.up(),
+            point.up().left(),
+            point.right(),
+            point.down().right(),
+            point.down(),
+            point.down().left(),
+            point.left(),
+        ]
+        .into_iter()
+        .filter(|&p| {
+            matches!(
+                self.get(p),
+                BoardCell::Space(Some(s)) if s == stone
+            )
+        })
+        .count()
+            > 6
     }
 }
 
