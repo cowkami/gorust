@@ -24,9 +24,28 @@ impl Stone {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum BoardCell {
     Wall,
     Space(Option<Stone>),
+}
+
+impl BoardCell {
+    pub fn is_wall(&self) -> bool {
+        matches!(self, BoardCell::Wall)
+    }
+
+    pub fn is_stone(&self) -> bool {
+        matches!(self, BoardCell::Space(Some(_)))
+    }
+
+    pub fn is_same_color(&self, stone: Stone) -> bool {
+        matches!(self, BoardCell::Space(Some(s)) if *s == stone)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        matches!(self, BoardCell::Space(None))
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -102,14 +121,14 @@ impl Board {
     fn can_put(&mut self, stone: Stone, point: Point) -> Result<(), String> {
         let board_cell = self.get(point);
         // validate point range
-        if matches!(board_cell, BoardCell::Wall) {
+        if board_cell.is_wall() {
             Err(format!("the point: {:?} is out of board range", point))
         }
         // #################
         // Go rules
         // #################
         // cannot put a stone on the existing stone.
-        else if matches!(board_cell, BoardCell::Space(Some(_))) {
+        else if board_cell.is_stone() {
             Err(format!("a stone is already on the point: {:?}", point))
         // cannot put a stone if the stones connected with it will be killed. but can put when can kill.
         } else if self.is_suicide(stone, point)
@@ -159,7 +178,7 @@ impl Board {
         ]
         .into_iter()
         // choose opponent's stones
-        .filter(|&p| matches!(self.get(p), BoardCell::Space(Some(s)) if s == stone.flip()))
+        .filter(|&p| self.get(p).is_same_color(stone.flip()))
         // find groups of opponent's stones
         .map(|p| self.find_group(stone.flip(), p))
         // choose group that breathing space is 1 and given point
@@ -194,7 +213,7 @@ impl Board {
                 continue;
             }
             // if the cell is empty
-            if matches!(self.get(check_point), BoardCell::Space(None)) {
+            if self.get(check_point).is_empty() {
                 breathing_points.push(check_point);
                 checked_points.insert(check_point);
             }
@@ -213,10 +232,7 @@ impl Board {
                 continue;
             }
             // check if the node's color is same
-            if matches!(
-                self.get(point),
-                BoardCell::Space(Some(s)) if s == stone,
-            ) {
+            if self.get(point).is_same_color(stone) {
                 // add same color to group
                 group.push(point);
                 // add up,down,left and right of the node to stack to check around the node
@@ -272,12 +288,7 @@ impl Board {
             point.left(),
         ]
         .into_iter()
-        .filter(|&p| {
-            matches!(
-                self.get(p),
-                BoardCell::Space(Some(s)) if s == stone
-            )
-        })
+        .filter(|&p| self.get(p).is_same_color(stone))
         .count()
             > 6
     }

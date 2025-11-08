@@ -48,6 +48,7 @@ impl Game {
     }
 
     pub fn game_end(&mut self) -> GameResult {
+        // based on chinese rule
         let mut black = 0.0;
         let mut white = 0.0;
         for row in 1..=BOARD_SIZE as i8 {
